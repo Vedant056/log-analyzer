@@ -5,61 +5,77 @@ import re
 def analyze_logs(filename):
     failed_logins = {}
 
-    print("\n" + "=" * 50)
-    print("        SECURITY LOG ANALYSIS")
-    print("=" * 50)
-    print(f"Generated: {datetime.now()}\n")
-
     try:
         with open(filename, "r") as file:
             for line in file:
-
-                # Check for failed SSH login
                 if "Failed password" in line:
-
-                    # Extract IP address from the log line
                     ip_match = re.search(r"from (\d+\.\d+\.\d+\.\d+)", line)
-
                     if ip_match:
                         ip = ip_match.group(1)
-
-                        # Count failed attempts for each IP
                         failed_logins[ip] = failed_logins.get(ip, 0) + 1
 
     except FileNotFoundError:
-        print(f"Error: File '{filename}' was not found.")
-        return
+        return {
+            "error": f"File '{filename}' was not found."
+        }
 
-    # Display results
-    print("Failed Login Attempts:")
-    print("-" * 30)
+    results = []
 
     for ip, count in failed_logins.items():
-
         if count >= 5:
-            print(f"[BRUTE FORCE] {ip} - {count} attempts")
-
+            status = "BRUTE FORCE"
         elif count >= 3:
-            print(f"[SUSPICIOUS] {ip} - {count} attempts")
-
+            status = "SUSPICIOUS"
         else:
-            print(f"[NORMAL] {ip} - {count} attempts")
+            status = "NORMAL"
 
-    print("\n" + "=" * 50)
-    print("              SUMMARY")
-    print("=" * 50)
+        results.append({
+            "ip": ip,
+            "attempts": count,
+            "status": status
+        })
 
-    print(f"Total IPs analyzed: {len(failed_logins)}")
+    suspicious_ips = sum(
+        1 for count in failed_logins.values() if count >= 3
+    )
 
-    suspicious_ips = sum(1 for count in failed_logins.values() if count >= 3)
+    return {
+        "generated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "total_ips": len(failed_logins),
+        "suspicious_ips": suspicious_ips,
+        "results": results
+    }
 
-    print(f"Suspicious IPs: {suspicious_ips}")
-    print("=" * 50)
 
+if __name__ == "__main__":
+    filename = input(
+        "Enter log file name (or press Enter for demo): "
+    ).strip()
 
-# Ask the user for the log file
-filename = input("Enter log file name (or press Enter for demo): ").strip()
-if not filename:
-    filename = "sample_auth.log"
+    if not filename:
+        filename = "sample_auth.log"
 
-analyze_logs(filename)
+    report = analyze_logs(filename)
+
+    if "error" in report:
+        print(report["error"])
+    else:
+        print("\n" + "=" * 50)
+        print("        SECURITY LOG ANALYSIS")
+        print("=" * 50)
+        print(f"Generated: {report['generated']}\n")
+        print("Failed Login Attempts:")
+        print("-" * 30)
+
+        for item in report["results"]:
+            print(
+                f"[{item['status']}] {item['ip']} - "
+                f"{item['attempts']} attempts"
+            )
+
+        print("\n" + "=" * 50)
+        print("              SUMMARY")
+        print("=" * 50)
+        print(f"Total IPs analyzed: {report['total_ips']}")
+        print(f"Suspicious IPs: {report['suspicious_ips']}")
+        print("=" * 50)

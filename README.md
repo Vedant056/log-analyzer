@@ -1,77 +1,153 @@
-Security Log Analyzer
+# Security Log Analyzer — CI/CD Pipeline & Kubernetes Deployment
 
-A beginner-friendly Python cybersecurity tool that analyzes authentication logs and detects repeated failed SSH login attempts.
+**Continuous Competency Assessment 2 (CCA 2)**  
+*TYCSE · Cloud Computing and DevOps Laboratory*  
+**Repository**: [https://github.com/Vedant056/log-analyzer](https://github.com/Vedant056/log-analyzer)
 
-Features
+---
 
-- Reads authentication log files
-- Detects failed SSH login attempts
-- Extracts IP addresses using Regular Expressions
-- Counts failed login attempts for each IP
-- Identifies potentially suspicious IP addresses
-- Detects possible brute-force activity
-- Displays a summary of analyzed IP addresses
-- Shows the analysis date and time
+## 1. Project Overview
 
-How It Works
+The **Security Log Analyzer** is a Python cybersecurity tool and web dashboard designed to parse SSH authentication logs (e.g., `/var/log/auth.log`) and detect suspicious access patterns, repeated failed login attempts, and potential brute-force attacks.
 
-The program reads the selected log file line by line.
+### Key Capabilities
+- **Regex-based IP Parsing**: Extracts source IP addresses from failed authentication records (`Failed password for ... from <IP>`).
+- **Threshold Analysis**: Categorizes IPs based on attempt frequencies:
+  - `>= 5 attempts`: `[BRUTE FORCE]` (high severity)
+  - `>= 3 attempts`: `[SUSPICIOUS]` (medium severity)
+  - `< 3 attempts`: `[NORMAL]` (low severity)
+- **Interactive Web Dashboard**: Built using Flask (`app.py`), presenting analysis statistics, timestamps, and detection tables in a clean, responsive interface.
+- **Dual Mode**: Can be executed directly as a command-line script (`python3 Log_Analyzer.py`) or as a containerized web service.
 
-When it finds a line containing "Failed password", it extracts the source IP address and counts the failed attempt.
+---
 
-If an IP address has 3 or more failed attempts, the program classifies it as a possible brute-force source.
+## 2. CI/CD Pipeline Architecture
 
-Example Output
+```
++-----------------------------------------------------------------------------------------+
+|                                CI/CD Pipeline Architecture                              |
++-----------------------------------------------------------------------------------------+
 
-==================================================
-             SECURITY LOG ANALYSIS
-==================================================
-Generated: 2026-08-26 ...
+  +---------------+       +------------------+       +-------------------+
+  |   Developer   | ----> | GitHub Repository| ----> | Jenkins Automation|
+  |  Local / Mac  |  git  |   (log-analyzer) |webhook|  Server (AWS EC2) |
+  +---------------+  push +------------------+ /poll +---------+---------+
+                                                               |
+                                +------------------------------+
+                                |
+                                v
+               +----------------------------------+
+               | Stage 1: SCM Checkout            |
+               | Stage 2: Build & Syntax Test     |
+               | Stage 3: Docker Image Build      |
+               | Stage 4: ECR Login & Tagging     |
+               | Stage 5: Push to Amazon ECR      |
+               | Stage 6: Minikube Deployment     |
+               | Stage 7: Workload Verification   |
+               +----------------+-----------------+
+                                |
+                                v
+                 +------------------------------+
+                 |   Amazon Elastic Container   |
+                 |      Registry (AWS ECR)      |
+                 |  (student-service:latest)    |
+                 +--------------+---------------+
+                                |
+                                v pull image
+                 +------------------------------+
+                 |    Minikube Kubernetes Node  |
+                 |  - Pod: log-analyzer (x2)    |
+                 |  - Svc: NodePort (30080)     |
+                 +--------------+---------------+
+                                |
+                                v
+                 +------------------------------+
+                 |  Browser / Client Dashboard  |
+                 |  http://<minikube-ip>:30080  |
+                 +------------------------------+
+```
 
-Failed Login Attempts:
+---
 
-[BRUTE FORCE] 192.168.1.10 - 5 attempts
-[NORMAL] 10.0.0.5 - 2 attempts
-[NORMAL] 172.16.0.20 - 1 attempts
+## 3. Pipeline Stages & Descriptions
 
-==================================================
-                    SUMMARY
-==================================================
-Total IPs analyzed: 3
-Suspicious IPs: 1
-==================================================
+1. **SCM Checkout**: Clones the latest commit from the `main` branch of the GitHub repository.
+2. **Build and Test**: Validates dependencies (`Flask`) and executes syntax/compilation checks using `python3 -m py_compile Log_Analyzer.py app.py` to prevent broken code from being packaged.
+3. **Docker Build**: Packages the application into a Docker container image based on `python:3.11-slim` using the project's `Dockerfile`.
+4. **ECR Login & Tag**: Authenticates the Docker client with the AWS ECR registry (`ap-south-1`) via AWS CLI, and tags the local image with the remote repository URI.
+5. **Push to Amazon ECR**: Pushes the tagged image (`220147487089.dkr.ecr.ap-south-1.amazonaws.com/student-service:latest`) to the Amazon ECR private repository.
+6. **Minikube Deployment**: Applies declarative Kubernetes manifests (`k8s/deployment.yaml` and `k8s/service.yaml`).
+7. **Verification**: Checks pod health, replica count, and NodePort service status.
 
-Requirements
+---
 
-- Python 3.x
-- No external Python libraries are required.
+## 4. Setup & Deployment Instructions
 
-How to Run
+### A. Local Execution (CLI & Web)
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
 
-Open Terminal in the project directory:
-
+# 2. Run CLI analyzer
 python3 Log_Analyzer.py
 
-When prompted for a log file, enter the filename.
+# 3. Run Flask web dashboard
+python3 app.py
+# Access dashboard at http://localhost:5000
+```
 
-For the included demo file, simply press Enter:
+### B. Docker Containerization
+```bash
+# Build Docker image
+docker build -t log-analyzer:latest .
 
-Enter log file name (or press Enter for demo):
+# Run container
+docker run -d --name log-analyzer-test -p 5000:5000 log-analyzer:latest
 
-The program will use:
+# Access at http://localhost:5000
+```
 
-sample_auth.log
+### C. Amazon ECR Integration
+```bash
+# Authenticate with Amazon ECR
+aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 220147487089.dkr.ecr.ap-south-1.amazonaws.com
 
-Project Structure
+# Tag image
+docker tag log-analyzer:latest 220147487089.dkr.ecr.ap-south-1.amazonaws.com/student-service:latest
 
-Log Analyzer/
-├── Log_Analyzer.py
-├── sample_auth.log
-├── README.md
-├── .gitignore
-└── screenshots/
-    └── output.png
+# Push image
+docker push 220147487089.dkr.ecr.ap-south-1.amazonaws.com/student-service:latest
+```
 
-Disclaimer
+### D. Kubernetes Deployment on Minikube
+```bash
+# Start Minikube cluster
+minikube start --driver=docker
 
-This project is created for educational and defensive cybersecurity purposes. The sample log data is for testing and demonstration only.
+# Apply Kubernetes manifests
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+
+# Verify pods and services
+kubectl get pods -l app=log-analyzer
+kubectl get svc log-analyzer-service
+
+# Access service in browser
+minikube service log-analyzer-service
+```
+
+---
+
+## 5. Demonstration of Code Change (Version 1 to Version 2)
+
+As required by Section 1 of the CCA 2 Student Guide:
+1. **Version 1**: Baseline dashboard displaying standard security metrics and detection summaries.
+2. **Version 2**: Update `app.py` with an upgraded header badge (`Version 2.0 - Active Monitoring`).
+3. Commit and push the modification to GitHub:
+   ```bash
+   git add app.py
+   git commit -m "feat: release version 2.0 with active monitoring badge"
+   git push origin main
+   ```
+4. Trigger the Jenkins pipeline again to build, tag, and publish the updated image.
+5. Verify the rolling update on Minikube and refresh the browser to confirm the live Version 2 deployment.

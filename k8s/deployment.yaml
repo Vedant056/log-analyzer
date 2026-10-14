@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-analyzer-deployment
+  labels:
+    app: log-analyzer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: log-analyzer
+  template:
+    metadata:
+      labels:
+        app: log-analyzer
+    spec:
+      imagePullSecrets:
+        - name: ecr-secret
+      containers:
+        - name: log-analyzer
+          image: 220147487089.dkr.ecr.ap-south-1.amazonaws.com/student-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
