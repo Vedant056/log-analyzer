@@ -38,7 +38,7 @@ HTML = """
     </style>
 </head>
 <body>
-    <h1>Security Log Analyzer</h1>
+    <h1>Security Log Analyzer 1</h1>
     <p>SSH authentication log analysis dashboard</p>
 
     <div class="card">
